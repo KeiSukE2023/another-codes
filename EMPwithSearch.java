@@ -288,7 +288,19 @@ public class EMPwithSearch extends JFrame {
             List<String> lines = new ArrayList<>();
             for (PayrollRecord payrollRecord : payrollRecords) {
                 Object[] rowData = payrollRecord.toRowData();
-                lines.add(String.format("%s | %s | %s | %s | %s | %s | %s | %s",
+                lines.add(String.format(
+                    "             PAYROLL RECEIPT%n" +
+                        "--------------------------------%n" +
+                        "Employee ID:      %s%n" +
+                        "Employee Name:    %s%n" +
+                        "--------------------------------%n" +
+                        "Basic Salary:     %s%n" +
+                        "Job Deduction:    %s%n" +
+                        "Letter Status:    %s%n" +
+                        "Letter Penalty:   %s%n" +
+                        "Overtime Pay:     %s%n" +
+                        "--------------------------------%n" +
+                        "NET PAY:          %s%n",
                         rowData[0], rowData[1], rowData[2], rowData[3],
                         rowData[4], rowData[5], rowData[6], rowData[7]));
             }

@@ -1,1 +1,26 @@
-01111 | WILFRED IKE AGUSTIN | P12000.00 | -P600.00 | Missing(-5% Penalty) | -P600.00 | +P133.93 | P10933.93
+             PAYROLL RECEIPT
+--------------------------------
+Employee ID:      01111
+Employee Name:    WILFRED IKE AGUSTIN
+--------------------------------
+Basic Salary:     P12000.00
+Job Deduction:    -P-600.00
+Letter Status:    Submitted(Waived)
+Letter Penalty:   -P0.00
+Overtime Pay:     +P133.93
+--------------------------------
+NET PAY:          P11533.93
+
+             PAYROLL RECEIPT
+--------------------------------
+Employee ID:      01234
+Employee Name:    KEISUKE
+--------------------------------
+Basic Salary:     P5000.00
+Job Deduction:    -P-150.00
+Letter Status:    Submitted(Waived)
+Letter Penalty:   -P0.00
+Overtime Pay:     +P139.51
+--------------------------------
+NET PAY:          P4989.51
+
