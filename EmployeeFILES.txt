@@ -1,2 +1,3 @@
-01111 | WILFRED IKE AGUSTIN | Developer | 12000.00
-01234 | KEISUKE | Staff | 5000.00
+EMP-922 | KEISUKE | Staff | 1500.00
+EMP-483 | sdsadqwdqsad | Manager | 31451.00
+EMP-481 | dgrcxdqsq | Staff | 9999.00

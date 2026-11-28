@@ -1,26 +1,34 @@
              PAYROLL RECEIPT
 --------------------------------
-Employee ID:      01111
-Employee Name:    WILFRED IKE AGUSTIN
+Employee ID:      EMP-922
+Employee Name:    KEISUKE
+Salary Release:   3rd of December
+Attendance Period: 2026-11-01 to 2026-11-30
+Attendance:       21 / 21 workdays
 --------------------------------
-Basic Salary:     P12000.00
-Job Deduction:    -P-600.00
+Basic Salary:     P1500.00
+Job Deduction:    -P45.00
 Letter Status:    Submitted(Waived)
 Letter Penalty:   -P0.00
-Overtime Pay:     +P133.93
+Attendance Deduction: -P0.00
+Overtime Pay:     +P0.00
 --------------------------------
-NET PAY:          P11533.93
+NET PAY:          P1455.00
 
              PAYROLL RECEIPT
 --------------------------------
-Employee ID:      01234
+Employee ID:      EMP-922
 Employee Name:    KEISUKE
+Salary Release:   15th of November
+Attendance Period: 2026-11-01 to 2026-11-30
+Attendance:       18 / 21 workdays
 --------------------------------
-Basic Salary:     P5000.00
-Job Deduction:    -P-150.00
+Basic Salary:     P1500.00
+Job Deduction:    -P45.00
 Letter Status:    Submitted(Waived)
 Letter Penalty:   -P0.00
-Overtime Pay:     +P139.51
+Attendance Deduction: -P214.29
+Overtime Pay:     +P33.48
 --------------------------------
-NET PAY:          P4989.51
+NET PAY:          P1274.20
 

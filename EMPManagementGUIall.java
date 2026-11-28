@@ -21,23 +21,42 @@ public class EMPManagementGUIall extends JFrame {
     // Central Data Structures (ArrayList & HashMap)
     private final ArrayList<Employee> employeeList = new ArrayList<>();
     private final ArrayList<PayrollRecord> payrollRecords = new ArrayList<>();
-    private final HashMap<String, Double> jobDeductionRules = new HashMap<>();
 
     // UI Tables & Models :3
     private DefaultTableModel empTableModel;
     private JTable empTable;
     private JPanel payrollReceiptList;
+    private JComboBox<PayrollRecord> comboDeleteReceipt;
     private TableRowSorter<DefaultTableModel> employeeSorter;
     private JTextField txtSearchEmployee;
+    private JTextField txtSearchReceipt;
 
     // Form Inputs GUI components :3
-    private JTextField txtId, txtName, txtSalary, txtOvertime;
+    private JTextField txtId, txtName, txtSalary, txtOvertime, txtDaysPresent;
     private JTextField txtPosition; //new field to display the position
     private JComboBox<String> comboJobType;
     private JComboBox<String> comboEmployeeSelect;
+    private JComboBox<String> comboJobDeductionPercent;
+    private JComboBox<String> comboSalaryReleaseMonth;
+    private JComboBox<Integer> comboSalaryReleaseDay;
+    private JSpinner spinnerAttendanceStart;
+    private JSpinner spinnerAttendanceEnd;
+    private String nextGeneratedEmployeeId;
     private JCheckBox chkLetterSubmitted;
-    private static final File PAYROLL_FILE = new File("Employee Generator Payslip.txt");
-    private static final File EMPLOYEE_FILE = new File("EmployeeFILES.txt");
+    private static final File PAYROLL_FILE = locateDataFile("Employee Generator Payslip.txt");
+    private static final File EMPLOYEE_FILE = locateDataFile("EmployeeFILES.txt");
+
+    private static File locateDataFile(String fileName) {
+        Path directory = new File(System.getProperty("user.dir")).toPath().toAbsolutePath();
+        while (directory != null) {
+            Path candidate = directory.resolve(fileName);
+            if (Files.isRegularFile(candidate)) {
+                return candidate.toFile();
+            }
+            directory = directory.getParent();
+        }
+        return new File(fileName).getAbsoluteFile();
+    }
 
     public EMPManagementGUIall() {
         setTitle("Employee Management System");
@@ -45,11 +64,6 @@ public class EMPManagementGUIall extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setLocationRelativeTo(null);
         setLayout(new BorderLayout(15, 15));
-
-        // Rules for job deduction :3
-        jobDeductionRules.put("Manager", 0.08); // 8% deduction for Manager
-        jobDeductionRules.put("Developer", 0.05); // 5% deduction for Developer
-        jobDeductionRules.put("Staff", 0.03); // 3% deduction for Staff
 
         // Create Main Tabbed Pane (Matches Architecture Sections in Documentation)
         JTabbedPane tabbedPane = new JTabbedPane();
@@ -60,18 +74,21 @@ public class EMPManagementGUIall extends JFrame {
         add(tabbedPane);
         loadEmployees();
         loadPayrollData();
+        refreshPayrollReceiptList();
         refreshEmployeeDropdown();
         refreshEmployeeTable();
+        updateEmployeeIdPreview();
     }
 
     private JPanel createEmployeePanel() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        JPanel inputPanel = new JPanel(new GridLayout(7, 1, 5, 5));
-        inputPanel.setBorder(BorderFactory.createTitledBorder("Add / Remove Employee"));
+        JPanel inputPanel = new JPanel(new GridLayout(8, 1, 5, 5));
+        inputPanel.setBorder(BorderFactory.createTitledBorder("Add / Update / Remove Employee"));
 
-        inputPanel.add(new JLabel("Employee ID:"));
+        inputPanel.add(new JLabel("Employee ID (Auto-generated):"));
         txtId = new JTextField();
+        txtId.setEditable(false);
         inputPanel.add(txtId);
 
         inputPanel.add(new JLabel("Full Name:"));
@@ -87,9 +104,11 @@ public class EMPManagementGUIall extends JFrame {
         inputPanel.add(txtSalary);
 
         JButton btnAdd = new JButton("Add Employee");
+        JButton btnUpdate = new JButton("Update Employee");
         JButton btnRemove = new JButton("Delete Employee");
         JPanel btnPanel = new JPanel(new FlowLayout());
         btnPanel.add(btnAdd);
+        btnPanel.add(btnUpdate);
         btnPanel.add(btnRemove);
 
         JPanel westContainer = new JPanel(new BorderLayout());
@@ -107,6 +126,11 @@ public class EMPManagementGUIall extends JFrame {
         // SEARCH FEATURE: Filters the employee table by ID, name, or job position while the user types.
         employeeSorter = new TableRowSorter<>(empTableModel);
         empTable.setRowSorter(employeeSorter);
+        empTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                loadSelectedEmployeeIntoForm();
+            }
+        });
         txtSearchEmployee = new JTextField(18);
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchPanel.add(new JLabel("Search Employee:"));
@@ -135,6 +159,7 @@ public class EMPManagementGUIall extends JFrame {
         panel.add(tableContainer, BorderLayout.CENTER);
 
         btnAdd.addActionListener(e -> addEmployee());
+        btnUpdate.addActionListener(e -> updateEmployee());
         btnRemove.addActionListener(e -> removeEmployee());
 
         return panel;
@@ -169,24 +194,82 @@ public class EMPManagementGUIall extends JFrame {
 
         gbc.gridx = 0;
         gbc.gridy = 2;
-        panel.add(new JLabel("Overtime Hours Worked:"), gbc);
-        txtOvertime = new JTextField("0");
+        panel.add(new JLabel("Job Deduction Rate:"), gbc);
+        String[] deductionChoices = { "1%", "2%", "3%", "4%", "5%", "6%", "7%", "8%", "9%", "10%" };
+        comboJobDeductionPercent = new JComboBox<>(deductionChoices);
+        comboJobDeductionPercent.setSelectedItem("5%");
         gbc.gridx = 1;
-        gbc.gridy = 2;
-        panel.add(txtOvertime, gbc);
+        panel.add(comboJobDeductionPercent, gbc);
 
         gbc.gridx = 0;
         gbc.gridy = 3;
-        panel.add(new JLabel("Excuse Letter Status:"), gbc);
-        chkLetterSubmitted = new JCheckBox("Excuse Letter Submitted (Waives 5% penalty)");
-        chkLetterSubmitted.setSelected(true);
+        panel.add(new JLabel("Overtime Hours Worked:"), gbc);
+        txtOvertime = new JTextField("0");
         gbc.gridx = 1;
         gbc.gridy = 3;
+        panel.add(txtOvertime, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 4;
+        panel.add(new JLabel("Attendance Start Date:"), gbc);
+        java.time.YearMonth currentMonth = java.time.YearMonth.now();
+        spinnerAttendanceStart = createDateSpinner(currentMonth.atDay(1));
+        gbc.gridx = 1;
+        panel.add(spinnerAttendanceStart, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 5;
+        panel.add(new JLabel("Attendance End Date:"), gbc);
+        spinnerAttendanceEnd = createDateSpinner(currentMonth.atEndOfMonth());
+        gbc.gridx = 1;
+        panel.add(spinnerAttendanceEnd, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 6;
+        panel.add(new JLabel("Days Present:"), gbc);
+        txtDaysPresent = new JTextField();
+        txtDaysPresent.setText(Integer.toString(countAttendanceWorkdays(
+            currentMonth.atDay(1), currentMonth.atEndOfMonth())));
+        spinnerAttendanceStart.addChangeListener(e -> updateAttendanceDaysLimit());
+        spinnerAttendanceEnd.addChangeListener(e -> updateAttendanceDaysLimit());
+        gbc.gridx = 1;
+        panel.add(txtDaysPresent, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 7;
+        panel.add(new JLabel("Excuse Letter Status:"), gbc);
+        chkLetterSubmitted = new JCheckBox("Excuse Letter Submitted (Waives 2% penalty)");
+        chkLetterSubmitted.setSelected(true);
+        gbc.gridx = 1;
+        gbc.gridy = 7;
         panel.add(chkLetterSubmitted, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 8;
+        panel.add(new JLabel("Salary Release Month:"), gbc);
+        String[] releaseMonths = {
+            "January", "February", "March", "April", "May", "June",
+            "July", "August", "September", "October", "November", "December"
+        };
+        comboSalaryReleaseMonth = new JComboBox<>(releaseMonths);
+        comboSalaryReleaseMonth.setSelectedIndex(java.time.LocalDate.now().getMonthValue() - 1);
+        gbc.gridx = 1;
+        gbc.gridy = 8;
+        panel.add(comboSalaryReleaseMonth, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = 9;
+        panel.add(new JLabel("Salary Release Day:"), gbc);
+        comboSalaryReleaseDay = new JComboBox<>();
+        refreshSalaryReleaseDays();
+        comboSalaryReleaseMonth.addActionListener(e -> refreshSalaryReleaseDays());
+        gbc.gridx = 1;
+        gbc.gridy = 9;
+        panel.add(comboSalaryReleaseDay, gbc);
 
         JButton btnCompute = new JButton("Compute & Generate Payslip");
         gbc.gridx = 1;
-        gbc.gridy = 4;
+        gbc.gridy = 10;
         panel.add(btnCompute, gbc);
 
         btnCompute.addActionListener(e -> computePayroll());
@@ -203,10 +286,53 @@ public class EMPManagementGUIall extends JFrame {
         JScrollPane scrollPane = new JScrollPane(payrollReceiptList);
         scrollPane.setBorder(BorderFactory.createTitledBorder("Payroll Receipts"));
 
+        JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        searchPanel.add(new JLabel("Search Payslips (ID, name, or date):"));
+        txtSearchReceipt = new JTextField(22);
+        searchPanel.add(txtSearchReceipt);
+        txtSearchReceipt.getDocument().addDocumentListener(new DocumentListener() {
+            @Override
+            public void insertUpdate(DocumentEvent e) {
+                refreshPayrollReceiptList();
+            }
+
+            @Override
+            public void removeUpdate(DocumentEvent e) {
+                refreshPayrollReceiptList();
+            }
+
+            @Override
+            public void changedUpdate(DocumentEvent e) {
+                refreshPayrollReceiptList();
+            }
+        });
+
+        panel.add(searchPanel, BorderLayout.NORTH);
         panel.add(scrollPane, BorderLayout.CENTER);
+
+        JPanel summaryActions = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        comboDeleteReceipt = new JComboBox<>();
+        comboDeleteReceipt.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                    boolean isSelected, boolean cellHasFocus) {
+                super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+                if (value instanceof PayrollRecord) {
+                    Object[] row = ((PayrollRecord) value).toRowData();
+                    setText(row[0] + " - " + row[1] + " - " + row[8]);
+                }
+                return this;
+            }
+        });
+        summaryActions.add(new JLabel("Delete payslip:"));
+        summaryActions.add(comboDeleteReceipt);
+        JButton btnDeleteSelected = new JButton("Delete Selected Payslip");
+        btnDeleteSelected.addActionListener(e -> deleteSelectedPayrollReceipt());
+        summaryActions.add(btnDeleteSelected);
         JButton btnExport = new JButton("Export Payroll Summary");
         btnExport.addActionListener(e -> SavePayrollToTextFileGUI());
-        panel.add(btnExport, BorderLayout.SOUTH);
+        summaryActions.add(btnExport);
+        panel.add(summaryActions, BorderLayout.SOUTH);
         return panel;
 
     }
@@ -214,20 +340,24 @@ public class EMPManagementGUIall extends JFrame {
     private void addPayrollReceipt(PayrollRecord record) { 
         Object[] rowData = record.toRowData();
         String receiptText = String.format(
-                "             PAYROLL RECEIPT%n" +
+                     "             PAYROLL RECEIPT%n" +
                         "--------------------------------%n" +
                         "Employee ID:      %s%n" +
                         "Employee Name:    %s%n" +
+                        "Salary Release:   %s%n" +
+                        "Attendance Period: %s%n" +
+                        "Attendance:       %s / %s workdays%n" +
                         "--------------------------------%n" +
                         "Basic Salary:     %s%n" +
                         "Job Deduction:    %s%n" +
                         "Letter Status:    %s%n" +
                         "Letter Penalty:   %s%n" +
+                        "Attendance Deduction: %s%n" +
                         "Overtime Pay:     %s%n" +
                         "--------------------------------%n" +
                         "NET PAY:          %s%n",
-                rowData[0], rowData[1], rowData[2], rowData[3],
-                rowData[4], rowData[5], rowData[6], rowData[7]);
+                rowData[0], rowData[1], rowData[8], rowData[11], rowData[9], rowData[12],
+                rowData[2], rowData[3], rowData[4], rowData[5], rowData[10], rowData[6], rowData[7]);
 
         JTextArea receipt = new JTextArea(receiptText, 12, 34);
         receipt.setEditable(false);
@@ -238,12 +368,64 @@ public class EMPManagementGUIall extends JFrame {
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY),
                 BorderFactory.createEmptyBorder(12, 16, 12, 16)));
 
-        JPanel receiptContainer = new JPanel(new FlowLayout(FlowLayout.LEFT, 12, 8));
+        JPanel receiptContainer = new JPanel(new BorderLayout(0, 4));
         receiptContainer.setBackground(payrollReceiptList.getBackground());
-        receiptContainer.add(receipt);
+        receiptContainer.add(receipt, BorderLayout.CENTER);
         payrollReceiptList.add(receiptContainer);
         payrollReceiptList.revalidate();
         payrollReceiptList.repaint();
+    }
+
+    private void refreshPayrollReceiptList() {
+        String query = txtSearchReceipt.getText().trim().toLowerCase(java.util.Locale.ROOT);
+        payrollReceiptList.removeAll();
+        comboDeleteReceipt.removeAllItems();
+        int matchingReceipts = 0;
+        for (PayrollRecord record : payrollRecords) {
+            String receiptData = java.util.Arrays.toString(record.toRowData()).toLowerCase(java.util.Locale.ROOT);
+            if (receiptData.contains(query)) {
+                addPayrollReceipt(record);
+                comboDeleteReceipt.addItem(record);
+                matchingReceipts++;
+            }
+        }
+        if (matchingReceipts == 0) {
+            payrollReceiptList.add(new JLabel("No payslips found."));
+        }
+        payrollReceiptList.revalidate();
+        payrollReceiptList.repaint();
+    }
+
+    private void deleteSelectedPayrollReceipt() {
+        PayrollRecord record = (PayrollRecord) comboDeleteReceipt.getSelectedItem();
+        if (record == null) {
+            JOptionPane.showMessageDialog(this, "There are no payslips to delete.", "No Payslip Selected",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        int confirmation = JOptionPane.showConfirmDialog(this,
+                "Delete the payslip for employee " + record.toRowData()[0] + "?",
+                "Confirm Payslip Deletion", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+        if (confirmation != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        int recordIndex = payrollRecords.indexOf(record);
+        if (recordIndex < 0) {
+            return;
+        }
+        List<PayrollRecord> remainingRecords = new ArrayList<>(payrollRecords);
+        remainingRecords.remove(recordIndex);
+        try {
+            writeAtomically(PAYROLL_FILE, formatPayrollReceipts(remainingRecords));
+        } catch (IOException ex) {
+            JOptionPane.showMessageDialog(this, "Could not save payslip changes: " + ex.getMessage(), "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        payrollRecords.remove(recordIndex);
+    refreshPayrollReceiptList();
     }
 
     private void loadEmployees() {
@@ -269,22 +451,68 @@ public class EMPManagementGUIall extends JFrame {
             return;
         }
         try {
-            for (String line : Files.readAllLines(PAYROLL_FILE.toPath(), StandardCharsets.UTF_8)) {
-                String[] data = line.split("\\s*\\|\\s*", -1);
-                if (data.length != 8) {
-                    throw new IOException("Invalid payroll record: " + line);
+            List<String> lines = Files.readAllLines(PAYROLL_FILE.toPath(), StandardCharsets.UTF_8);
+            boolean receiptFormat = lines.stream().anyMatch(line -> line.contains("PAYROLL RECEIPT"));
+            if (receiptFormat) {
+                List<String> receiptLines = new ArrayList<>();
+                for (String line : lines) {
+                    if (line.contains("PAYROLL RECEIPT")) {
+                        loadPayrollReceipt(receiptLines);
+                        receiptLines.clear();
+                    } else if (!line.trim().isEmpty() && !line.trim().startsWith("---")) {
+                        receiptLines.add(line);
+                    }
                 }
-                boolean letterSubmitted = data[4].contains("(Waived)");
-                PayrollRecord record = new PayrollRecord(data[1], data[0], parseAmount(data[2]),
-                        parseAmount(data[3]), parseAmount(data[7]), letterSubmitted,
-                        parseAmount(data[5]), parseAmount(data[6]));
-                payrollRecords.add(record);
-                addPayrollReceipt(record);
+                loadPayrollReceipt(receiptLines);
+            } else {
+                for (String line : lines) {
+                    String[] data = line.split("\\s*\\|\\s*", -1);
+                    if (data.length != 8) {
+                        throw new IOException("Invalid payroll record: " + line);
+                    }
+                    boolean letterSubmitted = data[4].contains("(Waived)");
+                    PayrollRecord record = new PayrollRecord(data[1], data[0], parseAmount(data[2]),
+                            Math.abs(parseAmount(data[3])), parseAmount(data[7]), letterSubmitted,
+                            Math.abs(parseAmount(data[5])), parseAmount(data[6]));
+                    payrollRecords.add(record);
+                    addPayrollReceipt(record);
+                }
             }
         } catch (IOException | NumberFormatException ex) {
             JOptionPane.showMessageDialog(this, "Error reading payroll file: " + ex.getMessage(),
                     "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    private void loadPayrollReceipt(List<String> receiptLines) {
+        HashMap<String, String> fields = new HashMap<>();
+        for (String line : receiptLines) {
+            int separator = line.indexOf(':');
+            if (separator >= 0) {
+                fields.put(line.substring(0, separator).trim(), line.substring(separator + 1).trim());
+            }
+        }
+        if (!fields.containsKey("Employee ID") || !fields.containsKey("Employee Name")) {
+            return;
+        }
+
+        boolean letterSubmitted = fields.getOrDefault("Letter Status", "").contains("(Waived)");
+        String salaryReleaseDate = fields.getOrDefault("Salary Release", "15th of each month");
+        String[] attendanceValues = fields.getOrDefault("Attendance", "28 / 28 workdays").split("/");
+        int daysPresent = Integer.parseInt(attendanceValues[0].trim());
+        int attendanceWorkdays = attendanceValues.length > 1
+            ? Integer.parseInt(attendanceValues[1].replace("workdays", "").replace("days", "").trim())
+            : 28;
+        double attendanceDeduction = fields.containsKey("Attendance Deduction")
+            ? Math.abs(parseAmount(fields.get("Attendance Deduction"))) : 0.0;
+        String attendancePeriod = fields.getOrDefault("Attendance Period", "Not recorded");
+        PayrollRecord record = new PayrollRecord(fields.get("Employee Name"), fields.get("Employee ID"),
+                parseAmount(fields.get("Basic Salary")), Math.abs(parseAmount(fields.get("Job Deduction"))),
+                parseAmount(fields.get("NET PAY")), letterSubmitted,
+                Math.abs(parseAmount(fields.get("Letter Penalty"))), parseAmount(fields.get("Overtime Pay")),
+                salaryReleaseDate, daysPresent, attendanceDeduction, attendancePeriod, attendanceWorkdays);
+        payrollRecords.add(record);
+        addPayrollReceipt(record);
     }
 
     private double parseAmount(String amount) {
@@ -324,26 +552,7 @@ public class EMPManagementGUIall extends JFrame {
 
         }
         try {
-            List<String> lines = new ArrayList<>();
-            for (PayrollRecord payrollRecord : payrollRecords) {
-                Object[] rowData = payrollRecord.toRowData();
-                lines.add(String.format(
-                    "             PAYROLL RECEIPT%n" +
-                        "--------------------------------%n" +
-                        "Employee ID:      %s%n" +
-                        "Employee Name:    %s%n" +
-                        "--------------------------------%n" +
-                        "Basic Salary:     %s%n" +
-                        "Job Deduction:    %s%n" +
-                        "Letter Status:    %s%n" +
-                        "Letter Penalty:   %s%n" +
-                        "Overtime Pay:     %s%n" +
-                        "--------------------------------%n" +
-                        "NET PAY:          %s%n",
-                        rowData[0], rowData[1], rowData[2], rowData[3],
-                        rowData[4], rowData[5], rowData[6], rowData[7]));
-            }
-            writeAtomically(PAYROLL_FILE, lines);
+            writeAtomically(PAYROLL_FILE, formatPayrollReceipts(payrollRecords));
             JOptionPane.showMessageDialog(this, "Payroll summary exported successfully to "
                     + PAYROLL_FILE.getAbsolutePath(), "Success", JOptionPane.INFORMATION_MESSAGE);
         } catch (IOException e) {
@@ -354,13 +563,40 @@ public class EMPManagementGUIall extends JFrame {
 
     }
 
+    private List<String> formatPayrollReceipts(List<PayrollRecord> records) {
+        List<String> lines = new ArrayList<>();
+        for (PayrollRecord payrollRecord : records) {
+            Object[] rowData = payrollRecord.toRowData();
+            lines.add(String.format(
+                    "             PAYROLL RECEIPT%n" +
+                            "--------------------------------%n" +
+                            "Employee ID:      %s%n" +
+                            "Employee Name:    %s%n" +
+                            "Salary Release:   %s%n" +
+                            "Attendance Period: %s%n" +
+                            "Attendance:       %s / %s workdays%n" +
+                            "--------------------------------%n" +
+                            "Basic Salary:     %s%n" +
+                            "Job Deduction:    %s%n" +
+                            "Letter Status:    %s%n" +
+                            "Letter Penalty:   %s%n" +
+                            "Attendance Deduction: %s%n" +
+                            "Overtime Pay:     %s%n" +
+                            "--------------------------------%n" +
+                            "NET PAY:          %s%n",
+                            rowData[0], rowData[1], rowData[8], rowData[11], rowData[9], rowData[12],
+                            rowData[2], rowData[3], rowData[4], rowData[5], rowData[10], rowData[6], rowData[7]));
+        }
+        return lines;
+    }
+
     private void addEmployee() {
-        String id = txtId.getText().trim();
+        String id = nextGeneratedEmployeeId;
         String name = txtName.getText().trim();
         String jobType = (String) comboJobType.getSelectedItem();
         String salaryStr = txtSalary.getText().trim();
 
-        if (id.isEmpty() || name.isEmpty() || salaryStr.isEmpty()) {
+        if (name.isEmpty() || salaryStr.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Please fill in all fields.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -398,8 +634,118 @@ public class EMPManagementGUIall extends JFrame {
         }
         refreshEmployeeDropdown();
         refreshEmployeeTable();
+        updateEmployeeIdPreview();
         JOptionPane.showMessageDialog(this, "Employee added successfully.");
 
+    }
+
+    private String generateNextEmployeeId() {
+        java.util.concurrent.ThreadLocalRandom random = java.util.concurrent.ThreadLocalRandom.current();
+        for (int attempt = 0; attempt < 900; attempt++) {
+            int candidateNumber = random.nextInt(100, 1000);
+            String candidate = String.format(java.util.Locale.ROOT, "EMP-%03d", candidateNumber);
+            if (!containsEmployeeId(candidate)) {
+                return candidate;
+            }
+        }
+
+        String candidate;
+        do {
+            int candidateNumber = random.nextInt(1000, 10000);
+            candidate = String.format(java.util.Locale.ROOT, "EMP-%04d", candidateNumber);
+        } while (containsEmployeeId(candidate));
+        return candidate;
+    }
+
+    private boolean containsEmployeeId(String id) {
+        for (Employee employee : employeeList) {
+            if (employee.getId().equalsIgnoreCase(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void updateEmployeeIdPreview() {
+        nextGeneratedEmployeeId = generateNextEmployeeId();
+        txtId.setText(nextGeneratedEmployeeId);
+    }
+
+    private void loadSelectedEmployeeIntoForm() {
+        int selectedRow = empTable.getSelectedRow();
+        if (selectedRow < 0) {
+            return;
+        }
+        int modelRow = empTable.convertRowIndexToModel(selectedRow);
+        txtName.setText(empTableModel.getValueAt(modelRow, 1).toString());
+        comboJobType.setSelectedItem(empTableModel.getValueAt(modelRow, 2).toString());
+        txtSalary.setText(empTableModel.getValueAt(modelRow, 3).toString().replace("P", ""));
+    }
+
+    private void updateEmployee() {
+        int selectedRow = empTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this, "Please select an employee row to update.", "Warning",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int modelRow = empTable.convertRowIndexToModel(selectedRow);
+        String originalId = empTableModel.getValueAt(modelRow, 0).toString();
+        int employeeIndex = -1;
+        for (int i = 0; i < employeeList.size(); i++) {
+            if (employeeList.get(i).getId().equals(originalId)) {
+                employeeIndex = i;
+                break;
+            }
+        }
+        if (employeeIndex < 0) {
+            return;
+        }
+
+        String id = originalId;
+        String name = txtName.getText().trim();
+        String jobType = (String) comboJobType.getSelectedItem();
+        String salaryText = txtSalary.getText().trim();
+        if (id.isEmpty() || name.isEmpty() || salaryText.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please fill in all fields.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        double basicSalary;
+        try {
+            basicSalary = Double.parseDouble(salaryText);
+            if (basicSalary < 0) {
+                throw new NumberFormatException("Negative salary");
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid positive number for salary.", "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        for (int i = 0; i < employeeList.size(); i++) {
+            if (i != employeeIndex && employeeList.get(i).getId().equalsIgnoreCase(id)) {
+                JOptionPane.showMessageDialog(this, "Employee ID already exists. Please use a unique ID.", "Error",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+
+        Employee previousEmployee = employeeList.set(employeeIndex,
+                new Employee(name, id, jobType, basicSalary));
+        try {
+            saveEmployees();
+        } catch (IOException ex) {
+            employeeList.set(employeeIndex, previousEmployee);
+            JOptionPane.showMessageDialog(this, "Error saving employee file: " + ex.getMessage(), "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        refreshEmployeeTable();
+        refreshEmployeeDropdown();
+        JOptionPane.showMessageDialog(this, "Employee updated successfully.");
     }
 
     private void removeEmployee() {
@@ -433,6 +779,7 @@ public class EMPManagementGUIall extends JFrame {
         }
         refreshEmployeeTable();
         refreshEmployeeDropdown();
+        updateEmployeeIdPreview();
         JOptionPane.showMessageDialog(this, "Employee removed successfully.");
 
     }
@@ -460,16 +807,39 @@ public class EMPManagementGUIall extends JFrame {
             return;
         try {
             double otHours = Double.parseDouble(txtOvertime.getText().trim());
+            int daysPresent = Integer.parseInt(txtDaysPresent.getText().trim());
+            java.time.LocalDate attendanceStart = getAttendanceDate(spinnerAttendanceStart);
+            java.time.LocalDate attendanceEnd = getAttendanceDate(spinnerAttendanceEnd);
+            if (attendanceEnd.isBefore(attendanceStart)) {
+                JOptionPane.showMessageDialog(this, "Attendance end date must be on or after the start date.",
+                        "Invalid Attendance Period", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            int attendanceWorkdays = countAttendanceWorkdays(attendanceStart, attendanceEnd);
+            if (attendanceWorkdays == 0) {
+                JOptionPane.showMessageDialog(this, "The selected attendance period has no weekdays.",
+                        "Invalid Attendance Period", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            if (daysPresent < 0 || daysPresent > attendanceWorkdays) {
+                JOptionPane.showMessageDialog(this,
+                        "Days present must be from 0 to " + attendanceWorkdays + " for the selected period.",
+                        "Invalid Attendance",
+                        JOptionPane.WARNING_MESSAGE);
+                return;
+            }
             boolean letterSubmitted = chkLetterSubmitted.isSelected();
 
             // Payroll Calculation Logic
             double basic = target.getBasicSalary();
-            double jobPercentage = jobDeductionRules.get(target.getJobType());
+                double jobPercentage = Integer.parseInt(
+                    ((String) comboJobDeductionPercent.getSelectedItem()).replace("%", "")) / 100.0;
             double jobDeduction = basic * jobPercentage;
+            double attendanceDeduction = (basic / attendanceWorkdays) * (attendanceWorkdays - daysPresent);
 
             double letterDeduction = 0.0;// Initialize letter deduction
             if (!letterSubmitted) {
-                letterDeduction = basic * 0.05; // 5% penalty
+                letterDeduction = basic * 0.02; // 2% penalty
 
             }
             // Overtime Pay Calculation: 1.25x the hourly rate for each hour worked beyond 8
@@ -478,13 +848,16 @@ public class EMPManagementGUIall extends JFrame {
             double overtimePay = otHours * (hourlyRate * 1.25);
 
             // Net Pay Calculation
-            double totalDeductions = jobDeduction + letterDeduction;
+            double totalDeductions = jobDeduction + letterDeduction + attendanceDeduction;
             double netPay = (basic + overtimePay) - totalDeductions;
 
             PayrollRecord record = new PayrollRecord(target.getName(), target.getId(), basic, jobDeduction, netPay,
-                    letterSubmitted, letterDeduction, overtimePay);
+                    letterSubmitted, letterDeduction, overtimePay,
+                    ordinalDay((Integer) comboSalaryReleaseDay.getSelectedItem()) + " of "
+                            + comboSalaryReleaseMonth.getSelectedItem(), daysPresent, attendanceDeduction,
+                        attendanceStart + " to " + attendanceEnd, attendanceWorkdays);
             payrollRecords.add(record);
-            addPayrollReceipt(record);
+            refreshPayrollReceiptList();
 
             JOptionPane.showMessageDialog(this, String.format("Payroll computed for %s (ID: %s)\nNet Pay: P%.2f",
                     target.getName(), target.getId(), netPay), "Payroll Computed", JOptionPane.INFORMATION_MESSAGE);
@@ -492,7 +865,7 @@ public class EMPManagementGUIall extends JFrame {
                     JOptionPane.INFORMATION_MESSAGE);
 
         } catch (NumberFormatException e) {
-            JOptionPane.showMessageDialog(this, "Please enter a valid number for overtime hours.", "Error",
+            JOptionPane.showMessageDialog(this, "Enter valid numbers for overtime hours and days present.", "Error",
                     JOptionPane.ERROR_MESSAGE);
 
         }
@@ -505,6 +878,78 @@ public class EMPManagementGUIall extends JFrame {
             comboEmployeeSelect.addItem(emp.getId() + " - " + emp.getName());
         }
         updateSelectedEmployeePosition();
+    }
+
+    private void refreshSalaryReleaseDays() {
+        int selectedDay = comboSalaryReleaseDay.getSelectedItem() instanceof Integer
+                ? (Integer) comboSalaryReleaseDay.getSelectedItem() : 15;
+        int month = comboSalaryReleaseMonth.getSelectedIndex() + 1;
+        int year = java.time.LocalDate.now().getYear();
+        int daysInMonth = java.time.YearMonth.of(year, month).lengthOfMonth();
+
+        comboSalaryReleaseDay.removeAllItems();
+        for (int day = 1; day <= daysInMonth; day++) {
+            comboSalaryReleaseDay.addItem(day);
+        }
+        comboSalaryReleaseDay.setSelectedItem(Math.min(selectedDay, daysInMonth));
+    }
+
+    private JSpinner createDateSpinner(java.time.LocalDate date) {
+        java.util.Date initialDate = java.util.Date.from(
+                date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant());
+        JSpinner spinner = new JSpinner(new SpinnerDateModel(initialDate, null, null, java.util.Calendar.DAY_OF_MONTH));
+        spinner.setEditor(new JSpinner.DateEditor(spinner, "yyyy-MM-dd"));
+        return spinner;
+    }
+
+    private java.time.LocalDate getAttendanceDate(JSpinner spinner) {
+        java.util.Date date = (java.util.Date) spinner.getValue();
+        return date.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+    }
+
+    private int countAttendanceWorkdays(java.time.LocalDate startDate, java.time.LocalDate endDate) {
+        int workdays = 0;
+        for (java.time.LocalDate date = startDate; !date.isAfter(endDate); date = date.plusDays(1)) {
+            java.time.DayOfWeek day = date.getDayOfWeek();
+            if (day != java.time.DayOfWeek.SATURDAY && day != java.time.DayOfWeek.SUNDAY) {
+                workdays++;
+            }
+        }
+        return workdays;
+    }
+
+    private void updateAttendanceDaysLimit() {
+        java.time.LocalDate startDate = getAttendanceDate(spinnerAttendanceStart);
+        java.time.LocalDate endDate = getAttendanceDate(spinnerAttendanceEnd);
+        if (endDate.isBefore(startDate)) {
+            return;
+        }
+
+        int workdays = countAttendanceWorkdays(startDate, endDate);
+        int daysPresent;
+        try {
+            daysPresent = Integer.parseInt(txtDaysPresent.getText().trim());
+        } catch (NumberFormatException ex) {
+            daysPresent = workdays;
+        }
+        txtDaysPresent.setText(Integer.toString(Math.max(0, Math.min(daysPresent, workdays))));
+    }
+
+    private String ordinalDay(int day) {
+        int lastTwoDigits = day % 100;
+        if (lastTwoDigits >= 11 && lastTwoDigits <= 13) {
+            return day + "th";
+        }
+        switch (day % 10) {
+            case 1:
+                return day + "st";
+            case 2:
+                return day + "nd";
+            case 3:
+                return day + "rd";
+            default:
+                return day + "th";
+        }
     }
 
     private void updateSelectedEmployeePosition() {

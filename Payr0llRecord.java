@@ -10,9 +10,10 @@ class PayrollRecord {
     private boolean letterSubmitted;
     private double letterDeduction;
     private double overtimePay;
+        private String salaryReleaseDay;
 
     public PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction, double netPay,
-            boolean letterSubmitted, double letterDeduction, double overtimePay) {
+            boolean letterSubmitted, double letterDeduction, double overtimePay, String salaryReleaseDay) {
         this.employeeName = employeeName;
         this.employeeId = employeeId;
         this.basicSalary = basicSalary;
@@ -21,12 +22,19 @@ class PayrollRecord {
         this.letterSubmitted = letterSubmitted;
         this.letterDeduction = letterDeduction;
         this.overtimePay = overtimePay;
+        this.salaryReleaseDay = salaryReleaseDay;
+        }
+
+        public PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction, double netPay,
+            boolean letterSubmitted, double letterDeduction, double overtimePay) {
+        this(employeeName, employeeId, basicSalary, jobDeduction, netPay, letterSubmitted, letterDeduction,
+            overtimePay, "15th of each month");
     }
 
     public Object[] toRowData() {
         return new Object[] { employeeId, employeeName, "P" + format(basicSalary), "-P" + format(jobDeduction),
                 letterSubmitted ? "Submitted(Waived)" : "Missing(-5% Penalty)", "-P" + format(letterDeduction),
-                "+P" + format(overtimePay), "P" + format(netPay) };
+                "+P" + format(overtimePay), "P" + format(netPay), salaryReleaseDay };
 
     }
 

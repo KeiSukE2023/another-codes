@@ -56,9 +56,44 @@ class PayrollRecord {
     private boolean letterSubmitted;
     private double letterDeduction;
     private double overtimePay;
+    private int letterPenaltyPercent;
+    private String salaryReleaseDay;
+    private int daysPresent;
+    private double attendanceDeduction;
+    private String attendancePeriod;
+    private int attendanceWorkdays;
 
     public PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction, double netPay,
-            boolean letterSubmitted, double letterDeduction, double overtimePay) {
+            boolean letterSubmitted, double letterDeduction, double overtimePay, int letterPenaltyPercent) {
+        this(employeeName, employeeId, basicSalary, jobDeduction, netPay, letterSubmitted, letterDeduction,
+            overtimePay, letterPenaltyPercent, "15th of each month", 28, 0.0, "Not recorded", 28);
+    }
+
+        public PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction, double netPay,
+            boolean letterSubmitted, double letterDeduction, double overtimePay, String salaryReleaseDay) {
+        this(employeeName, employeeId, basicSalary, jobDeduction, netPay, letterSubmitted, letterDeduction,
+            overtimePay, 5, salaryReleaseDay, 28, 0.0, "Not recorded", 28);
+    }
+
+    public PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction, double netPay,
+            boolean letterSubmitted, double letterDeduction, double overtimePay, String salaryReleaseDay,
+            int daysPresent, double attendanceDeduction) {
+        this(employeeName, employeeId, basicSalary, jobDeduction, netPay, letterSubmitted, letterDeduction,
+                overtimePay, 5, salaryReleaseDay, daysPresent, attendanceDeduction, "Not recorded", 28);
+    }
+
+            public PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction, double netPay,
+                boolean letterSubmitted, double letterDeduction, double overtimePay, String salaryReleaseDay,
+                int daysPresent, double attendanceDeduction, String attendancePeriod, int attendanceWorkdays) {
+            this(employeeName, employeeId, basicSalary, jobDeduction, netPay, letterSubmitted, letterDeduction,
+                overtimePay, 5, salaryReleaseDay, daysPresent, attendanceDeduction, attendancePeriod,
+                attendanceWorkdays);
+            }
+
+    private PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction,
+            double netPay, boolean letterSubmitted, double letterDeduction, double overtimePay,
+            int letterPenaltyPercent, String salaryReleaseDay, int daysPresent, double attendanceDeduction,
+            String attendancePeriod, int attendanceWorkdays) {
         this.employeeName = employeeName;
         this.employeeId = employeeId;
         this.basicSalary = basicSalary;
@@ -67,13 +102,25 @@ class PayrollRecord {
         this.letterSubmitted = letterSubmitted;
         this.letterDeduction = letterDeduction;
         this.overtimePay = overtimePay;
+        this.letterPenaltyPercent = letterPenaltyPercent;
+        this.salaryReleaseDay = salaryReleaseDay;
+        this.daysPresent = daysPresent;
+        this.attendanceDeduction = attendanceDeduction;
+        this.attendancePeriod = attendancePeriod;
+        this.attendanceWorkdays = attendanceWorkdays;
     }
 
     public Object[] toRowData() {
         return new Object[] { employeeId, employeeName, "P" + format(basicSalary), "-P" + format(jobDeduction),
-                letterSubmitted ? "Submitted(Waived)" : "Missing(-5% Penalty)", "-P" + format(letterDeduction),
-                "+P" + format(overtimePay), "P" + format(netPay) };
+            letterSubmitted ? "Submitted(Waived)" : "Missing(-" + letterPenaltyPercent + "% Penalty)", "-P" + format(letterDeduction),
+                "+P" + format(overtimePay), "P" + format(netPay), salaryReleaseDay,
+                daysPresent, "-P" + format(attendanceDeduction), attendancePeriod, attendanceWorkdays };
 
+    }
+
+    public PayrollRecord(String employeeName, String employeeId, double basicSalary, double jobDeduction, double netPay,
+            boolean letterSubmitted, double letterDeduction, double overtimePay) {
+        this(employeeName, employeeId, basicSalary, jobDeduction, netPay, letterSubmitted, letterDeduction, overtimePay, 5);
     }
 
     private String format(double value) {
@@ -99,6 +146,7 @@ public class EmployeeMGUI extends JFrame {
     private JTextField txtId, txtName, txtSalary, txtOvertime;
     private JComboBox<String> comboJobType;
     private JComboBox<String> comboEmployeeSelect;
+    private JComboBox<String> comboLetterPenalty;
     private JCheckBox chkLetterSubmitted;
     private static final File PAYROLL_FILE = new File("Employee Generator Payslip.txt");
     private static final File EMPLOYEE_FILE = new File("EmployeeFILES.txt");
@@ -131,8 +179,8 @@ public class EmployeeMGUI extends JFrame {
     private JPanel createEmployeePanel() {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        JPanel inputPanel = new JPanel(new GridLayout(7, 1, 5, 5));
-        inputPanel.setBorder(BorderFactory.createTitledBorder("Add / Remove Employee"));
+        JPanel inputPanel = new JPanel(new GridLayout(8, 1, 5, 5));
+        inputPanel.setBorder(BorderFactory.createTitledBorder("Add / Update / Remove Employee"));
 
         inputPanel.add(new JLabel("Employee ID:"));
         txtId = new JTextField();
@@ -151,9 +199,11 @@ public class EmployeeMGUI extends JFrame {
         inputPanel.add(txtSalary);
 
         JButton btnAdd = new JButton("Add Employee");
+        JButton btnUpdate = new JButton("Update Employee");
         JButton btnRemove = new JButton("Delete Employee");
         JPanel btnPanel = new JPanel(new FlowLayout());
         btnPanel.add(btnAdd);
+        btnPanel.add(btnUpdate);
         btnPanel.add(btnRemove);
 
         JPanel westContainer = new JPanel(new BorderLayout());
@@ -167,6 +217,11 @@ public class EmployeeMGUI extends JFrame {
             }
         };
         empTable = new JTable(empTableModel);
+        empTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                loadSelectedEmployeeIntoForm();
+            }
+        });
         JScrollPane scrollPane = new JScrollPane(empTable);
         scrollPane.setBorder(BorderFactory.createTitledBorder("Employee Master List"));
 
@@ -174,6 +229,7 @@ public class EmployeeMGUI extends JFrame {
         panel.add(scrollPane, BorderLayout.CENTER);
 
         btnAdd.addActionListener(e -> addEmployee());
+        btnUpdate.addActionListener(e -> updateEmployee());
         btnRemove.addActionListener(e -> removeEmployee());
 
         return panel;
@@ -206,15 +262,25 @@ public class EmployeeMGUI extends JFrame {
         gbc.gridx = 0;
         gbc.gridy = 2;
         panel.add(new JLabel("Excuse Letter Status:"), gbc);
-        chkLetterSubmitted = new JCheckBox("Excuse Letter Submitted (Waives 5% penalty)");
+        chkLetterSubmitted = new JCheckBox("Excuse Letter Submitted (waives penalty)");
         chkLetterSubmitted.setSelected(true);
         gbc.gridx = 1;
         gbc.gridy = 2;
         panel.add(chkLetterSubmitted, gbc);
 
-        JButton btnCompute = new JButton("Compute & Generate Payslip");
+        gbc.gridx = 0;
+        gbc.gridy = 3;
+        panel.add(new JLabel("Missing Letter Penalty:"), gbc);
+        String[] penaltyChoices = { "1%", "2%", "3%", "4%", "5%", "6%", "7%", "8%", "9%", "10%" };
+        comboLetterPenalty = new JComboBox<>(penaltyChoices);
+        comboLetterPenalty.setSelectedItem("5%");
         gbc.gridx = 1;
         gbc.gridy = 3;
+        panel.add(comboLetterPenalty, gbc);
+
+        JButton btnCompute = new JButton("Compute & Generate Payslip");
+        gbc.gridx = 1;
+        gbc.gridy = 4;
         panel.add(btnCompute, gbc);
 
         btnCompute.addActionListener(e -> computePayroll());
@@ -402,6 +468,84 @@ public class EmployeeMGUI extends JFrame {
 
     }
 
+    private void loadSelectedEmployeeIntoForm() {
+        int selectedRow = empTable.getSelectedRow();
+        if (selectedRow < 0) {
+            return;
+        }
+        int modelRow = empTable.convertRowIndexToModel(selectedRow);
+        txtId.setText(empTableModel.getValueAt(modelRow, 0).toString());
+        txtName.setText(empTableModel.getValueAt(modelRow, 1).toString());
+        comboJobType.setSelectedItem(empTableModel.getValueAt(modelRow, 2).toString());
+        txtSalary.setText(empTableModel.getValueAt(modelRow, 3).toString().replace("P", ""));
+    }
+
+    private void updateEmployee() {
+        int selectedRow = empTable.getSelectedRow();
+        if (selectedRow < 0) {
+            JOptionPane.showMessageDialog(this, "Please select an employee row to update.", "Warning",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int modelRow = empTable.convertRowIndexToModel(selectedRow);
+        String originalId = empTableModel.getValueAt(modelRow, 0).toString();
+        int employeeIndex = -1;
+        for (int i = 0; i < employeeList.size(); i++) {
+            if (employeeList.get(i).getId().equals(originalId)) {
+                employeeIndex = i;
+                break;
+            }
+        }
+        if (employeeIndex < 0) {
+            return;
+        }
+
+        String id = txtId.getText().trim();
+        String name = txtName.getText().trim();
+        String jobType = (String) comboJobType.getSelectedItem();
+        String salaryText = txtSalary.getText().trim();
+        if (id.isEmpty() || name.isEmpty() || salaryText.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Please fill in all fields.", "Error", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        double basicSalary;
+        try {
+            basicSalary = Double.parseDouble(salaryText);
+            if (basicSalary < 0) {
+                throw new NumberFormatException("Negative salary");
+            }
+        } catch (NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid positive number for salary.", "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        for (int i = 0; i < employeeList.size(); i++) {
+            if (i != employeeIndex && employeeList.get(i).getId().equalsIgnoreCase(id)) {
+                JOptionPane.showMessageDialog(this, "Employee ID already exists. Please use a unique ID.", "Error",
+                        JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+        }
+
+        Employee previousEmployee = employeeList.set(employeeIndex,
+                new Employee(name, id, jobType, basicSalary));
+        try {
+            saveEmployees();
+        } catch (IOException ex) {
+            employeeList.set(employeeIndex, previousEmployee);
+            JOptionPane.showMessageDialog(this, "Error saving employee file: " + ex.getMessage(), "Error",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        refreshEmployeeTable();
+        refreshEmployeeDropdown();
+        JOptionPane.showMessageDialog(this, "Employee updated successfully.");
+    }
+
     private void removeEmployee() {
         int selectedRow = empTable.getSelectedRow();
         if (selectedRow == -1) {
@@ -466,8 +610,9 @@ public class EmployeeMGUI extends JFrame {
             double jobDeduction = basic * jobPercentage;
 
             double letterDeduction = 0.0;// Initialize letter deduction
+            int letterPenaltyPercent = Integer.parseInt(((String) comboLetterPenalty.getSelectedItem()).replace("%", ""));
             if (!letterSubmitted) {
-                letterDeduction = basic * 0.05; // 5% penalty
+                letterDeduction = basic * (letterPenaltyPercent / 100.0);
 
             }
             // Overtime Pay Calculation: 1.25x the hourly rate for each hour worked beyond 8
@@ -480,7 +625,7 @@ public class EmployeeMGUI extends JFrame {
             double netPay = (basic + overtimePay) - totalDeductions;
 
             PayrollRecord record = new PayrollRecord(target.getName(), target.getId(), basic, jobDeduction, netPay,
-                    letterSubmitted, letterDeduction, overtimePay);
+                    letterSubmitted, letterDeduction, overtimePay, letterPenaltyPercent);
             payrollRecords.add(record);
             payrollTableModel.addRow(record.toRowData());
 

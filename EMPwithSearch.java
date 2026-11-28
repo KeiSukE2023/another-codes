@@ -62,6 +62,7 @@ public class EMPwithSearch extends JFrame {
         loadPayrollData();
         refreshEmployeeDropdown();
         refreshEmployeeTable();
+        updateEmployeeIdPreview();
     }
 
     private JPanel createEmployeePanel() {
@@ -70,8 +71,9 @@ public class EMPwithSearch extends JFrame {
         JPanel inputPanel = new JPanel(new GridLayout(7, 1, 5, 5));
         inputPanel.setBorder(BorderFactory.createTitledBorder("Add / Remove Employee"));
 
-        inputPanel.add(new JLabel("Employee ID:"));
+        inputPanel.add(new JLabel("Employee ID (Auto-generated):"));
         txtId = new JTextField();
+        txtId.setEditable(false);
         inputPanel.add(txtId);
 
         inputPanel.add(new JLabel("Full Name:"));
@@ -316,12 +318,12 @@ public class EMPwithSearch extends JFrame {
     }
 
     private void addEmployee() {
-        String id = txtId.getText().trim();
+        String id = generateNextEmployeeId();
         String name = txtName.getText().trim();
         String jobType = (String) comboJobType.getSelectedItem();
         String salaryStr = txtSalary.getText().trim();
 
-        if (id.isEmpty() || name.isEmpty() || salaryStr.isEmpty()) {
+        if (name.isEmpty() || salaryStr.isEmpty()) {
             JOptionPane.showMessageDialog(this, "Please fill in all fields.", "Error", JOptionPane.ERROR_MESSAGE);
             return;
         }
@@ -359,8 +361,44 @@ public class EMPwithSearch extends JFrame {
         }
         refreshEmployeeDropdown();
         refreshEmployeeTable();
+        updateEmployeeIdPreview();
         JOptionPane.showMessageDialog(this, "Employee added successfully.");
 
+    }
+
+    private String generateNextEmployeeId() {
+        int highestNumber = 0;
+        for (Employee employee : employeeList) {
+            String existingId = employee.getId().trim();
+            if (existingId.regionMatches(true, 0, "EMP-", 0, 4)) {
+                try {
+                    highestNumber = Math.max(highestNumber, Integer.parseInt(existingId.substring(4)));
+                } catch (NumberFormatException ignored) {
+                    // Ignore IDs that do not end with a numeric sequence.
+                }
+            }
+        }
+
+        int nextNumber = highestNumber + 1;
+        String candidate = String.format(java.util.Locale.ROOT, "EMP-%03d", nextNumber);
+        while (containsEmployeeId(candidate)) {
+            nextNumber++;
+            candidate = String.format(java.util.Locale.ROOT, "EMP-%03d", nextNumber);
+        }
+        return candidate;
+    }
+
+    private boolean containsEmployeeId(String id) {
+        for (Employee employee : employeeList) {
+            if (employee.getId().equalsIgnoreCase(id)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private void updateEmployeeIdPreview() {
+        txtId.setText(generateNextEmployeeId());
     }
 
     private void removeEmployee() {
@@ -394,6 +432,7 @@ public class EMPwithSearch extends JFrame {
         }
         refreshEmployeeTable();
         refreshEmployeeDropdown();
+        updateEmployeeIdPreview();
         JOptionPane.showMessageDialog(this, "Employee removed successfully.");
 
     }
